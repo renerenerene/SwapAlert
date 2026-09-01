@@ -14,21 +14,56 @@ export CLANG_MODULE_CACHE_PATH="$BUILD_DIR/module-cache"
 
 cd "$ROOT_DIR"
 mkdir -p "$BUILD_DIR/module-cache" "$BUILD_DIR/swiftpm-cache" "$BUILD_DIR/swiftpm-config" "$BUILD_DIR/swiftpm-security"
+
+# The icon generator must run on the build host, while the application is
+# always cross-compiled for Apple Silicon so CI and local builds match.
 swift build \
     -c release \
+    --product IconGenerator \
     --disable-sandbox \
     --scratch-path "$BUILD_DIR" \
     --cache-path "$BUILD_DIR/swiftpm-cache" \
     --config-path "$BUILD_DIR/swiftpm-config" \
     --security-path "$BUILD_DIR/swiftpm-security"
 
+HOST_BIN_DIR=$(swift build \
+    -c release \
+    --product IconGenerator \
+    --show-bin-path \
+    --disable-sandbox \
+    --scratch-path "$BUILD_DIR" \
+    --cache-path "$BUILD_DIR/swiftpm-cache" \
+    --config-path "$BUILD_DIR/swiftpm-config" \
+    --security-path "$BUILD_DIR/swiftpm-security")
+
+swift build \
+    -c release \
+    --product SwapAlert \
+    --arch arm64 \
+    --disable-sandbox \
+    --scratch-path "$BUILD_DIR" \
+    --cache-path "$BUILD_DIR/swiftpm-cache" \
+    --config-path "$BUILD_DIR/swiftpm-config" \
+    --security-path "$BUILD_DIR/swiftpm-security"
+
+APP_BIN_DIR=$(swift build \
+    -c release \
+    --product SwapAlert \
+    --arch arm64 \
+    --show-bin-path \
+    --disable-sandbox \
+    --scratch-path "$BUILD_DIR" \
+    --cache-path "$BUILD_DIR/swiftpm-cache" \
+    --config-path "$BUILD_DIR/swiftpm-config" \
+    --security-path "$BUILD_DIR/swiftpm-security")
+
 rm -rf "$APP_DIR"
 mkdir -p "$MACOS_DIR" "$RESOURCES_DIR"
 
-cp "$BUILD_DIR/release/SwapAlert" "$MACOS_DIR/SwapAlert"
+cp "$APP_BIN_DIR/SwapAlert" "$MACOS_DIR/SwapAlert"
 cp "$ROOT_DIR/Resources/Info.plist" "$CONTENTS_DIR/Info.plist"
 
-"$BUILD_DIR/release/IconGenerator" "$BUILD_DIR/AppIcon-1024.png"
+"$HOST_BIN_DIR/IconGenerator" "$BUILD_DIR/AppIcon-1024.png"
 cp "$BUILD_DIR/AppIcon-1024.png" "$RESOURCES_DIR/AppIcon.png"
 
 xattr -cr "$APP_DIR"
